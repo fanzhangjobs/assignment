@@ -1,0 +1,24 @@
+apiVersion: image.toolkit.fluxcd.io/v1
+kind: ImageRepository
+metadata:
+  name: backend-image
+  namespace: flux-system
+spec:
+  image: bmodemoacr.azurecr.io/backendapp
+  interval: 2m
+  secretRef:
+    name: acr-secret
+---
+apiVersion: image.toolkit.fluxcd.io/v1
+kind: ImagePolicy
+metadata:
+  name: backend-policy
+  namespace: flux-system
+spec:
+  imageRepositoryRef:
+    name: backend-image
+  #interval: 2m                     # <-- REQUIRED for digestReflectionPolicy
+  policy:
+    semver:
+      range: ">=v1.0.0"               # Picks highest semver version
+  #digestReflectionPolicy: Always   # Track latest digest even for non-semver tags

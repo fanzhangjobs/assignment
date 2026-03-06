@@ -1,0 +1,84 @@
+name: Build and Push Docker Image to ACR
+
+on:
+  push:
+    branches:
+      - main
+      - dev
+
+jobs:
+  build-and-push:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+        with:
+          fetch-depth: 0 
+
+      - name: Set up Git
+        run: git fetch --tags
+
+      - name: Determine next version
+        id: version
+        run: |
+          # Use manual tag if provided
+          if [ -n "${{ secrets.MANUAL_TAG }}" ]; then
+          NEXT_TAG="${{ secrets.MANUAL_TAG }}"
+          echo "Using manual tag: $NEXT_TAG"
+          else
+            # Auto-increment patch
+            LAST_TAG=$(git describe --tags --abbrev=0 || echo "v0.0.0")
+            echo "Last tag: $LAST_TAG"
+            IFS='.' read -r MAJOR MINOR PATCH <<< "${LAST_TAG#v}"
+            PATCH=$((PATCH+1))
+            NEXT_TAG="v$MAJOR.$MINOR.$PATCH"
+            echo "Auto-incremented tag: $NEXT_TAG"
+          fi
+
+          # Export to later steps
+          echo "NEXT_TAG=$NEXT_TAG" >> $GITHUB_ENV
+
+      - uses: azure/login@v1
+        with:
+          creds: |
+            {
+              "clientId": "${{ secrets.AZURE_CLIENT_ID }}",
+              "tenantId": "${{ secrets.AZURE_TENANT_ID }}",
+              "subscriptionId": "${{ secrets.AZURE_SUBSCRIPTION_ID }}",
+              "clientSecret": "${{ secrets.AZURE_CLIENT_SECRET }}"
+            }
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install flask pytest
+
+      - name: Run tests
+        run: |
+          PYTHONPATH=. pytest tests/ --maxfail=1 --disable-warnings -q
+          
+      - name: Build Docker image
+        run: |
+          docker build -t ${{ secrets.ACR_NAME }}.azurecr.io/backendapp:${NEXT_TAG} .
+
+      - name: Login to ACR
+        run: az acr login --name ${{ secrets.ACR_NAME }}
+
+      - name: Push Docker image
+        run: |
+          docker push ${{ secrets.ACR_NAME }}.azurecr.io/backendapp:${NEXT_TAG}
+
+      - name: Tag latest
+        run: |
+          docker tag ${{ secrets.ACR_NAME }}.azurecr.io/backendapp:${NEXT_TAG} ${{ secrets.ACR_NAME }}.azurecr.io/backendapp:latest
+          docker push ${{ secrets.ACR_NAME }}.azurecr.io/backendapp:latest
+      - name: Create Git tag
+        env:
+          NEXT_TAG: ${{ env.NEXT_TAG }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+
+          git tag $NEXT_TAG
+          # Push using token to authenticate
+          git push https://x-access-token:${GITHUB_TOKEN}@github.com/${{ github.repository }} $NEXT_TAG
