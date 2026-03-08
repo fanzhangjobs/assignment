@@ -1,0 +1,10 @@
+apiVersion: source.toolkit.fluxcd.io/v1
+kind: GitRepository
+metadata:
+  name: flux-system      # <--- must match image-automation sourceRef.name
+  namespace: flux-system
+spec:
+  interval: 1m
+  url: https://github.com/fanzhangjobs/ha-gitops-repo
+  ref:
+    branch: fflux

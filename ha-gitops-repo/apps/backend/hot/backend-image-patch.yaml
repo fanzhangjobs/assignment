@@ -1,0 +1,12 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: backend-deployment
+  namespace: bmo
+spec:
+  replicas: 3
+  template:
+    spec:
+      containers:
+        - name: backend
+          image: bmodemoacr.azurecr.io/backendapp:v2.1.3 # {"$imagepolicy": "flux-system:backend-policy"}

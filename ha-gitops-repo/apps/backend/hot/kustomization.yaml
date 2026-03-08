@@ -1,0 +1,5 @@
+resources:
+- ../base
+
+patchesStrategicMerge:
+- backend-image-patch.yaml
